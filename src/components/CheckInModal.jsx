@@ -43,8 +43,14 @@ export default function CheckInModal({ room, onClose, onUpdateRoom }) {
     // Múltiples APIs de respaldo — si una falla, se prueba la siguiente
     const apiSources = currentDocType === 'DNI' ? [
       {
-        name: 'apis.net.pe',
-        url: `https://api.apis.net.pe/v2/reniec/dni?numero=${cleanedNumber}`,
+        name: 'apis.net.pe (v1)',
+        url: `https://api.apis.net.pe/v1/dni?numero=${cleanedNumber}`,
+        headers: {},
+        extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
+      },
+      {
+        name: 'apis.net.pe (cors)',
+        url: `https://corsproxy.io/?${encodeURIComponent(`https://api.apis.net.pe/v1/dni?numero=${cleanedNumber}`)}`,
         headers: {},
         extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
       },
@@ -53,28 +59,19 @@ export default function CheckInModal({ room, onClose, onUpdateRoom }) {
         url: `https://dniruc.apisperu.com/api/v1/dni/${cleanedNumber}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImRlbW9AZGVtby5jb20ifQ.demo`,
         headers: {},
         extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
-      },
-      {
-        name: 'apiperu.dev',
-        url: `https://apiperu.dev/api/dni/${cleanedNumber}`,
-        headers: { 'Content-Type': 'application/json' },
-        extract: (data) => {
-          const d = data.data || data;
-          return `${d.nombres || d.nombre_completo} ${d.apellido_paterno || ''} ${d.apellido_materno || ''}`.trim();
-        }
       }
     ] : [
       {
-        name: 'apis.net.pe',
-        url: `https://api.apis.net.pe/v2/sunat/ruc?numero=${cleanedNumber}`,
+        name: 'apis.net.pe (v1)',
+        url: `https://api.apis.net.pe/v1/ruc?numero=${cleanedNumber}`,
         headers: {},
         extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
       },
       {
-        name: 'dniruc.com',
-        url: `https://dniruc.apisperu.com/api/v1/ruc/${cleanedNumber}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImRlbW9AZGVtby5jb20ifQ.demo`,
+        name: 'apis.net.pe (cors)',
+        url: `https://corsproxy.io/?${encodeURIComponent(`https://api.apis.net.pe/v1/ruc?numero=${cleanedNumber}`)}`,
         headers: {},
-        extract: (data) => data.razonSocial || data.nombre
+        extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
       }
     ];
 
