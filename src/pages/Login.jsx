@@ -189,24 +189,6 @@ export default function Login() {
             </button>
           </form>
         </div>
-
-        {/* Footer hint */}
-        <div style={{
-          textAlign: 'center', marginTop: '1.5rem',
-          padding: '1rem', borderRadius: '12px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.06)'
-        }}>
-          <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', margin: '0 0 0.5rem' }}>
-            Usuarios de prueba:
-          </p>
-          <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', margin: '0 0 0.25rem' }}>
-            <strong style={{ color: '#10b981' }}>Admin:</strong> admin@lajoya.com / admin123
-          </p>
-          <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-            <strong style={{ color: '#10b981' }}>Recepción:</strong> maria@lajoya.com / maria123
-          </p>
-        </div>
       </div>
     </div>
   );
