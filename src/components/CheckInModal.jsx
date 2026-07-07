@@ -46,30 +46,21 @@ export default function CheckInModal({ room, onClose, onUpdateRoom }) {
         name: 'apis.net.pe (v1)',
         url: `https://api.apis.net.pe/v1/dni?numero=${cleanedNumber}`,
         headers: {},
-        extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
+        extract: (data) => data.nombre || `${data.nombres || ''} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim()
       },
       {
-        name: 'apis.net.pe (cors)',
-        url: `https://corsproxy.io/?${encodeURIComponent(`https://api.apis.net.pe/v1/dni?numero=${cleanedNumber}`)}`,
-        headers: {},
-        extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
-      },
-      {
-        name: 'dniruc.com',
-        url: `https://dniruc.apisperu.com/api/v1/dni/${cleanedNumber}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImRlbW9AZGVtby5jb20ifQ.demo`,
-        headers: {},
-        extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
+        name: 'apiperu.dev',
+        url: `https://apiperu.dev/api/dni/${cleanedNumber}`,
+        headers: { 'Content-Type': 'application/json' },
+        extract: (data) => {
+          const d = data.data || data;
+          return (d.nombre_completo || d.nombre || `${d.nombres || ''} ${d.apellido_paterno || ''} ${d.apellido_materno || ''}`).trim();
+        }
       }
     ] : [
       {
         name: 'apis.net.pe (v1)',
         url: `https://api.apis.net.pe/v1/ruc?numero=${cleanedNumber}`,
-        headers: {},
-        extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
-      },
-      {
-        name: 'apis.net.pe (cors)',
-        url: `https://corsproxy.io/?${encodeURIComponent(`https://api.apis.net.pe/v1/ruc?numero=${cleanedNumber}`)}`,
         headers: {},
         extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
       }
