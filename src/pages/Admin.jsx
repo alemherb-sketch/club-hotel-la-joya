@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Shield, Users, Clock, Activity, LogOut, LogIn,
-  Search, Filter, ChevronDown, Circle, Monitor
+  Search, Filter, ChevronDown, Circle, Monitor,
+  UserPlus, Edit3, Trash2, X, Eye, EyeOff, Save
 } from 'lucide-react';
 
 export default function Admin() {
@@ -12,13 +13,21 @@ export default function Admin() {
   const [sessions, setSessions] = useState([]);
   const [activities, setActivities] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [filterModule, setFilterModule] = useState('Todos');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'recepcionista' });
+  const [formError, setFormError] = useState('');
+  const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
     fetchSessions();
     fetchActivities();
     fetchOnlineUsers();
+    fetchAllUsers();
 
     // Actualizar cada 30 segundos
     const interval = setInterval(() => {
@@ -54,6 +63,89 @@ export default function Admin() {
       .order('created_at', { ascending: false })
       .limit(100);
     if (data) setActivities(data);
+  };
+
+  const fetchAllUsers = async () => {
+    const { data } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (data) setAllUsers(data);
+  };
+
+  const openNewUserModal = () => {
+    setEditingUser(null);
+    setUserForm({ name: '', email: '', password: '', role: 'recepcionista' });
+    setFormError('');
+    setShowPassword(false);
+    setShowUserModal(true);
+  };
+
+  const openEditUserModal = (u) => {
+    setEditingUser(u);
+    setUserForm({ name: u.name, email: u.email, password: '', role: u.role });
+    setFormError('');
+    setShowPassword(false);
+    setShowUserModal(true);
+  };
+
+  const handleSaveUser = async () => {
+    setFormError('');
+    if (!userForm.name.trim() || !userForm.email.trim()) {
+      setFormError('Nombre y correo son obligatorios');
+      return;
+    }
+    if (!editingUser && !userForm.password.trim()) {
+      setFormError('La contraseña es obligatoria para nuevos usuarios');
+      return;
+    }
+
+    setFormLoading(true);
+    try {
+      if (editingUser) {
+        const updateData = { name: userForm.name, email: userForm.email, role: userForm.role, avatar: userForm.name[0].toUpperCase() };
+        if (userForm.password.trim()) updateData.password = userForm.password;
+        const { error } = await supabase.from('users').update(updateData).eq('id', editingUser.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('users').insert({
+          name: userForm.name,
+          email: userForm.email,
+          password: userForm.password,
+          role: userForm.role,
+          avatar: userForm.name[0].toUpperCase()
+        });
+        if (error) {
+          if (error.code === '23505') throw new Error('Ya existe un usuario con ese correo');
+          throw error;
+        }
+      }
+      setShowUserModal(false);
+      fetchAllUsers();
+    } catch (err) {
+      setFormError(err.message || 'Error al guardar el usuario');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (u) => {
+    if (u.id === user.id) {
+      alert('No puedes eliminar tu propia cuenta');
+      return;
+    }
+    if (!confirm(`¿Estás seguro de eliminar a "${u.name}"?`)) return;
+    await supabase.from('users').delete().eq('id', u.id);
+    fetchAllUsers();
+  };
+
+  const getRoleBadge = (role) => {
+    switch (role) {
+      case 'admin': return { bg: 'rgba(239,68,68,0.15)', color: '#f87171', label: '🛡️ Administrador' };
+      case 'recepcionista': return { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa', label: '🔑 Recepcionista' };
+      case 'cajero': return { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', label: '💰 Cajero' };
+      default: return { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af', label: role };
+    }
   };
 
   const formatDate = (dateStr) => {
@@ -196,6 +288,10 @@ export default function Admin() {
         <button onClick={() => setActiveTab('activity')} style={tabStyle(activeTab === 'activity')}>
           <Activity size={16} />
           Registro de Actividad
+        </button>
+        <button onClick={() => { setActiveTab('users'); fetchAllUsers(); }} style={tabStyle(activeTab === 'users')}>
+          <Users size={16} />
+          Gestión de Usuarios ({allUsers.length})
         </button>
       </div>
 
@@ -350,6 +446,152 @@ export default function Admin() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Users Management */}
+      {activeTab === 'users' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>{allUsers.length} usuarios registrados</p>
+            <button onClick={openNewUserModal} style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.6rem 1.2rem', borderRadius: '10px', border: 'none',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              color: 'white', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem',
+              boxShadow: '0 4px 12px rgba(16,185,129,0.3)'
+            }}>
+              <UserPlus size={16} />
+              Nuevo Usuario
+            </button>
+          </div>
+
+          <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Usuario</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Correo</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rol</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Creado</th>
+                    <th style={{ padding: '1rem 1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 500, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allUsers.map((u, i) => {
+                    const badge = getRoleBadge(u.role);
+                    return (
+                      <tr key={u.id} style={{ borderBottom: i < allUsers.length - 1 ? '1px solid var(--border)' : 'none', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '0.85rem 1.25rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 600, fontSize: '0.85rem' }}>
+                              {u.avatar || u.name?.[0]}
+                            </div>
+                            <span style={{ fontWeight: 500, color: 'var(--text-main)' }}>{u.name}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.85rem 1.25rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                        <td style={{ padding: '0.85rem 1.25rem' }}>
+                          <span style={{ padding: '0.25rem 0.75rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 500, background: badge.bg, color: badge.color }}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.85rem 1.25rem', color: 'var(--text-muted)' }}>{formatDate(u.created_at)}</td>
+                        <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button onClick={() => openEditUserModal(u)} style={{ background: 'rgba(59,130,246,0.15)', border: 'none', borderRadius: '8px', padding: '0.4rem', cursor: 'pointer', color: '#60a5fa' }} title="Editar">
+                              <Edit3 size={16} />
+                            </button>
+                            <button onClick={() => handleDeleteUser(u)} style={{ background: 'rgba(239,68,68,0.15)', border: 'none', borderRadius: '8px', padding: '0.4rem', cursor: 'pointer', color: '#f87171' }} title="Eliminar">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nuevo/Editar Usuario */}
+      {showUserModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={() => setShowUserModal(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: '20px', border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
+              <button onClick={() => setShowUserModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {formError && (
+              <div style={{ padding: '0.65rem 1rem', borderRadius: '10px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                {formError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Nombre completo</label>
+                <input value={userForm.name} onChange={e => setUserForm({ ...userForm, name: e.target.value })} placeholder="Ej: Ana García" style={{ width: '100%', padding: '0.7rem 1rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Correo electrónico</label>
+                <input value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} type="email" placeholder="ana@lajoya.com" style={{ width: '100%', padding: '0.7rem 1rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                  {editingUser ? 'Nueva contraseña (dejar vacío para mantener)' : 'Contraseña'}
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} type={showPassword ? 'text' : 'password'} placeholder="••••••••" style={{ width: '100%', padding: '0.7rem 2.5rem 0.7rem 1rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-main)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Rol</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {['recepcionista', 'cajero', 'admin'].map(r => (
+                    <button key={r} onClick={() => setUserForm({ ...userForm, role: r })} style={{
+                      flex: 1, padding: '0.6rem', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500, transition: 'all 0.2s',
+                      border: userForm.role === r ? '2px solid var(--primary)' : '1px solid var(--border)',
+                      background: userForm.role === r ? 'rgba(16,185,129,0.1)' : 'var(--surface-hover)',
+                      color: userForm.role === r ? 'var(--primary)' : 'var(--text-muted)'
+                    }}>
+                      {r === 'admin' ? '🛡️ Admin' : r === 'recepcionista' ? '🔑 Recepción' : '💰 Cajero'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button onClick={() => setShowUserModal(false)} style={{ flex: 1, padding: '0.75rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--surface-hover)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}>Cancelar</button>
+              <button onClick={handleSaveUser} disabled={formLoading} style={{
+                flex: 1, padding: '0.75rem', borderRadius: '10px', border: 'none',
+                background: formLoading ? 'rgba(16,185,129,0.5)' : 'linear-gradient(135deg, #10b981, #059669)',
+                color: 'white', cursor: formLoading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+              }}>
+                <Save size={16} />
+                {formLoading ? 'Guardando...' : (editingUser ? 'Actualizar' : 'Crear Usuario')}
+              </button>
+            </div>
           </div>
         </div>
       )}
