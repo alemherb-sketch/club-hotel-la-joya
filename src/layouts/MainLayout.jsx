@@ -7,6 +7,12 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  // Admin tiene acceso total, otros usuarios solo a sus permisos asignados
+  const hasPermission = (module) => {
+    if (user?.role === 'admin') return true;
+    return user?.permissions?.includes(module) || false;
+  };
+
   const getPageTitle = () => {
     switch (location.pathname) {
       case '/dashboard': return 'Dashboard';
@@ -34,26 +40,36 @@ export default function MainLayout() {
         </div>
         
         <nav className="nav-menu">
-          <NavLink to="/dashboard" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
-          </NavLink>
-          <NavLink to="/recepcion" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Key size={20} />
-            <span>Recepción</span>
-          </NavLink>
-          <NavLink to="/pos" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Store size={20} />
-            <span>Punto de Venta</span>
-          </NavLink>
-          <NavLink to="/huespedes" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Users size={20} />
-            <span>Huéspedes</span>
-          </NavLink>
-          <NavLink to="/caja" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Receipt size={20} />
-            <span>Caja & Facturación</span>
-          </NavLink>
+          {hasPermission('dashboard') && (
+            <NavLink to="/dashboard" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <LayoutDashboard size={20} />
+              <span>Dashboard</span>
+            </NavLink>
+          )}
+          {hasPermission('recepcion') && (
+            <NavLink to="/recepcion" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Key size={20} />
+              <span>Recepción</span>
+            </NavLink>
+          )}
+          {hasPermission('pos') && (
+            <NavLink to="/pos" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Store size={20} />
+              <span>Punto de Venta</span>
+            </NavLink>
+          )}
+          {hasPermission('huespedes') && (
+            <NavLink to="/huespedes" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Users size={20} />
+              <span>Huéspedes</span>
+            </NavLink>
+          )}
+          {hasPermission('caja') && (
+            <NavLink to="/caja" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Receipt size={20} />
+              <span>Caja & Facturación</span>
+            </NavLink>
+          )}
 
           {user?.role === 'admin' && (
             <>

@@ -19,9 +19,17 @@ export default function Admin() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'recepcionista' });
+  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'empleado', permissions: [] });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+
+  const AVAILABLE_PERMISSIONS = [
+    { key: 'recepcion', label: 'Recepción', icon: '🔑', description: 'Check-in, Check-out, estado de habitaciones' },
+    { key: 'pos', label: 'Punto de Venta', icon: '🛒', description: 'Ventas, cobros, cargos a habitación' },
+    { key: 'huespedes', label: 'Huéspedes', icon: '👥', description: 'Registro y consulta de huéspedes' },
+    { key: 'caja', label: 'Caja & Facturación', icon: '🧾', description: 'Facturación, cierres de caja' },
+    { key: 'dashboard', label: 'Dashboard', icon: '📊', description: 'Panel de estadísticas generales' },
+  ];
 
   useEffect(() => {
     fetchSessions();
@@ -75,7 +83,7 @@ export default function Admin() {
 
   const openNewUserModal = () => {
     setEditingUser(null);
-    setUserForm({ name: '', email: '', password: '', role: 'recepcionista' });
+    setUserForm({ name: '', email: '', password: '', role: 'empleado', permissions: [] });
     setFormError('');
     setShowPassword(false);
     setShowUserModal(true);
@@ -83,10 +91,19 @@ export default function Admin() {
 
   const openEditUserModal = (u) => {
     setEditingUser(u);
-    setUserForm({ name: u.name, email: u.email, password: '', role: u.role });
+    setUserForm({ name: u.name, email: u.email, password: '', role: u.role, permissions: u.permissions || [] });
     setFormError('');
     setShowPassword(false);
     setShowUserModal(true);
+  };
+
+  const togglePermission = (key) => {
+    setUserForm(prev => ({
+      ...prev,
+      permissions: prev.permissions.includes(key)
+        ? prev.permissions.filter(p => p !== key)
+        : [...prev.permissions, key]
+    }));
   };
 
   const handleSaveUser = async () => {
@@ -99,11 +116,15 @@ export default function Admin() {
       setFormError('La contraseña es obligatoria para nuevos usuarios');
       return;
     }
+    if (userForm.role !== 'admin' && userForm.permissions.length === 0) {
+      setFormError('Debes asignar al menos un permiso');
+      return;
+    }
 
     setFormLoading(true);
     try {
       if (editingUser) {
-        const updateData = { name: userForm.name, email: userForm.email, role: userForm.role, avatar: userForm.name[0].toUpperCase() };
+        const updateData = { name: userForm.name, email: userForm.email, role: userForm.role, permissions: userForm.permissions, avatar: userForm.name[0].toUpperCase() };
         if (userForm.password.trim()) updateData.password = userForm.password;
         const { error } = await supabase.from('users').update(updateData).eq('id', editingUser.id);
         if (error) throw error;
@@ -113,6 +134,7 @@ export default function Admin() {
           email: userForm.email,
           password: userForm.password,
           role: userForm.role,
+          permissions: userForm.permissions,
           avatar: userForm.name[0].toUpperCase()
         });
         if (error) {
@@ -142,10 +164,13 @@ export default function Admin() {
   const getRoleBadge = (role) => {
     switch (role) {
       case 'admin': return { bg: 'rgba(239,68,68,0.15)', color: '#f87171', label: '🛡️ Administrador' };
-      case 'recepcionista': return { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa', label: '🔑 Recepcionista' };
-      case 'cajero': return { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', label: '💰 Cajero' };
-      default: return { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af', label: role };
+      default: return { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa', label: '👤 Empleado' };
     }
+  };
+
+  const getPermissionLabels = (perms) => {
+    if (!perms || perms.length === 0) return [];
+    return AVAILABLE_PERMISSIONS.filter(p => perms.includes(p.key));
   };
 
   const formatDate = (dateStr) => {
@@ -499,6 +524,15 @@ export default function Admin() {
                           <span style={{ padding: '0.25rem 0.75rem', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 500, background: badge.bg, color: badge.color }}>
                             {badge.label}
                           </span>
+                          {u.role !== 'admin' && u.permissions && u.permissions.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                              {getPermissionLabels(u.permissions).map(p => (
+                                <span key={p.key} style={{ padding: '0.15rem 0.4rem', borderRadius: '6px', fontSize: '0.65rem', background: 'rgba(16,185,129,0.1)', color: '#34d399' }}>
+                                  {p.icon} {p.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '0.85rem 1.25rem', color: 'var(--text-muted)' }}>{formatDate(u.created_at)}</td>
                         <td style={{ padding: '0.85rem 1.25rem', textAlign: 'center' }}>
@@ -564,18 +598,35 @@ export default function Admin() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Rol</label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  {['recepcionista', 'cajero', 'admin'].map(r => (
-                    <button key={r} onClick={() => setUserForm({ ...userForm, role: r })} style={{
-                      flex: 1, padding: '0.6rem', borderRadius: '10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500, transition: 'all 0.2s',
-                      border: userForm.role === r ? '2px solid var(--primary)' : '1px solid var(--border)',
-                      background: userForm.role === r ? 'rgba(16,185,129,0.1)' : 'var(--surface-hover)',
-                      color: userForm.role === r ? 'var(--primary)' : 'var(--text-muted)'
-                    }}>
-                      {r === 'admin' ? '🛡️ Admin' : r === 'recepcionista' ? '🔑 Recepción' : '💰 Cajero'}
-                    </button>
-                  ))}
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '0.6rem' }}>Permisos de acceso</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {AVAILABLE_PERMISSIONS.map(perm => {
+                    const isChecked = userForm.permissions.includes(perm.key);
+                    return (
+                      <div key={perm.key} onClick={() => togglePermission(perm.key)} style={{
+                        display: 'flex', alignItems: 'center', gap: '0.75rem',
+                        padding: '0.6rem 0.85rem', borderRadius: '10px', cursor: 'pointer',
+                        border: isChecked ? '2px solid var(--primary)' : '1px solid var(--border)',
+                        background: isChecked ? 'rgba(16,185,129,0.08)' : 'var(--surface-hover)',
+                        transition: 'all 0.15s'
+                      }}>
+                        <div style={{
+                          width: '20px', height: '20px', borderRadius: '6px', flexShrink: 0,
+                          border: isChecked ? 'none' : '2px solid var(--border)',
+                          background: isChecked ? 'var(--primary)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'white', fontSize: '0.7rem', fontWeight: 700
+                        }}>
+                          {isChecked && '✓'}
+                        </div>
+                        <span style={{ fontSize: '1rem' }}>{perm.icon}</span>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 500, color: isChecked ? 'var(--primary)' : 'var(--text-main)' }}>{perm.label}</span>
+                          <p style={{ margin: '0.1rem 0 0', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{perm.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
