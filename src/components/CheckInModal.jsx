@@ -23,56 +23,97 @@ export default function CheckInModal({ room, onClose, onUpdateRoom }) {
   const handleSearchDocument = async () => {
     if (!docNumber) return;
     setIsSearching(true);
-    try {
-      let url = '';
-      let currentDocType = docType;
-
-      // Auto-detect based on length
-      const cleanedNumber = docNumber.trim();
-      if (cleanedNumber.length === 8) {
-        currentDocType = 'DNI';
-        setDocType('DNI');
-        url = `/api-peru/v1/dni?numero=${cleanedNumber}`;
-      } else if (cleanedNumber.length === 11) {
-        currentDocType = 'RUC';
-        setDocType('RUC');
-        url = `/api-peru/v1/ruc?numero=${cleanedNumber}`;
-      } else {
-        alert('El documento debe tener 8 dígitos (DNI) o 11 dígitos (RUC) para la búsqueda automática.');
-        setIsSearching(false);
-        return;
-      }
-      
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        if (currentDocType === 'DNI') {
-          setGuestName(`${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`);
-        } else if (currentDocType === 'RUC') {
-          setGuestName(data.nombre || data.razonSocial);
-        }
-      } else {
-        // Fallback for when the free public API limits are reached or blocked
-        console.warn('API call failed, using mock data fallback.');
-        if (currentDocType === 'DNI') {
-          setGuestName('Huésped Encontrado (Simulado)');
-        } else {
-          setGuestName('Empresa Simulada S.A.C.');
-        }
-        alert('Se detectó límite en la API gratuita. Se rellenaron datos simulados por ahora.');
-      }
-    } catch (error) {
-      console.error(error);
-      // Fallback
-      if (currentDocType === 'DNI') {
-        setGuestName('Huésped Encontrado (Simulado)');
-      } else {
-        setGuestName('Empresa Simulada S.A.C.');
-      }
-      alert('Error de conexión o bloqueo CORS de la API. Se usaron datos simulados.');
-    } finally {
+    
+    const cleanedNumber = docNumber.trim();
+    let currentDocType = docType;
+    
+    // Auto-detect based on length
+    if (cleanedNumber.length === 8) {
+      currentDocType = 'DNI';
+      setDocType('DNI');
+    } else if (cleanedNumber.length === 11) {
+      currentDocType = 'RUC';
+      setDocType('RUC');
+    } else {
+      alert('El documento debe tener 8 dígitos (DNI) o 11 dígitos (RUC) para la búsqueda automática.');
       setIsSearching(false);
+      return;
     }
+
+    // Múltiples APIs de respaldo — si una falla, se prueba la siguiente
+    const apiSources = currentDocType === 'DNI' ? [
+      {
+        name: 'apis.net.pe',
+        url: `https://api.apis.net.pe/v2/reniec/dni?numero=${cleanedNumber}`,
+        headers: {},
+        extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
+      },
+      {
+        name: 'dniruc.com',
+        url: `https://dniruc.apisperu.com/api/v1/dni/${cleanedNumber}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImRlbW9AZGVtby5jb20ifQ.demo`,
+        headers: {},
+        extract: (data) => `${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`
+      },
+      {
+        name: 'apiperu.dev',
+        url: `https://apiperu.dev/api/dni/${cleanedNumber}`,
+        headers: { 'Content-Type': 'application/json' },
+        extract: (data) => {
+          const d = data.data || data;
+          return `${d.nombres || d.nombre_completo} ${d.apellido_paterno || ''} ${d.apellido_materno || ''}`.trim();
+        }
+      }
+    ] : [
+      {
+        name: 'apis.net.pe',
+        url: `https://api.apis.net.pe/v2/sunat/ruc?numero=${cleanedNumber}`,
+        headers: {},
+        extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
+      },
+      {
+        name: 'dniruc.com',
+        url: `https://dniruc.apisperu.com/api/v1/ruc/${cleanedNumber}?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImRlbW9AZGVtby5jb20ifQ.demo`,
+        headers: {},
+        extract: (data) => data.razonSocial || data.nombre
+      }
+    ];
+
+    let found = false;
+
+    for (const source of apiSources) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos máximo por API
+
+        const response = await fetch(source.url, {
+          headers: source.headers,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data && !data.error) {
+            const name = source.extract(data);
+            if (name && name.trim() && name.trim() !== 'undefined undefined undefined') {
+              setGuestName(name.trim());
+              found = true;
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`API ${source.name} falló:`, err.message);
+        // Continuar con la siguiente API
+      }
+    }
+
+    if (!found) {
+      // Si ninguna API respondió, permitir ingreso manual
+      alert('No se pudo consultar el documento en este momento. Por favor, ingresa el nombre manualmente.');
+    }
+    
+    setIsSearching(false);
   };
 
   return (
