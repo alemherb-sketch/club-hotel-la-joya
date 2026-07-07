@@ -1,8 +1,11 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Key, Users, Receipt, Building2, Bell, Search, Store } from 'lucide-react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Key, Users, Receipt, Building2, Bell, Search, Store, Shield, LogOut } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const getPageTitle = () => {
     switch (location.pathname) {
@@ -11,8 +14,14 @@ export default function MainLayout() {
       case '/huespedes': return 'Huéspedes';
       case '/caja': return 'Caja / Facturación';
       case '/pos': return 'Punto de Venta (POS)';
+      case '/admin': return 'Panel de Administración';
       default: return 'Club Hotel La Joya';
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
   };
 
   return (
@@ -45,7 +54,35 @@ export default function MainLayout() {
             <Receipt size={20} />
             <span>Caja & Facturación</span>
           </NavLink>
+
+          {user?.role === 'admin' && (
+            <>
+              <div style={{ height: '1px', background: 'var(--border)', margin: '0.75rem 0' }} />
+              <NavLink to="/admin" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+                <Shield size={20} />
+                <span>Administración</span>
+              </NavLink>
+            </>
+          )}
         </nav>
+
+        {/* Logout button at bottom of sidebar */}
+        <div style={{ marginTop: 'auto', padding: '1rem' }}>
+          <button onClick={handleLogout} style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '0.75rem 1rem', borderRadius: '10px',
+            border: '1px solid rgba(239,68,68,0.2)',
+            background: 'rgba(239,68,68,0.08)',
+            color: '#f87171', cursor: 'pointer', fontSize: '0.85rem',
+            transition: 'all 0.2s'
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+          >
+            <LogOut size={18} />
+            <span>Cerrar Sesión</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -65,10 +102,12 @@ export default function MainLayout() {
             </button>
             
             <div className="user-profile">
-              <div className="avatar">A</div>
+              <div className="avatar">{user?.avatar || user?.name?.[0] || 'U'}</div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>Admin</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recepción</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>{user?.name || 'Usuario'}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {user?.role === 'admin' ? 'Administrador' : user?.role === 'recepcionista' ? 'Recepción' : 'Cajero'}
+                </span>
               </div>
             </div>
           </div>

@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ShoppingBag, Search, Plus, Minus, Trash2, DoorClosed } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function POS() {
+  const { logActivity } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [cart, setCart] = useState([]);
@@ -72,7 +74,12 @@ export default function POS() {
     }
     
     const method = isChargingToRoom ? `Cargo Hab. ${selectedRoom}` : 'Venta Directa';
+    const itemsSummary = cart.map(i => `${i.name} x${i.quantity}`).join(', ');
     alert(`Comanda registrada exitosamente.\nMétodo: ${method}\nTotal: S/. ${total.toFixed(2)}`);
+    
+    // Registrar actividad
+    logActivity(null, null, 'pos_sale', `Venta POS S/.${total.toFixed(2)} (${method}) — ${itemsSummary}`, 'POS');
+    
     setCart([]);
     setIsChargingToRoom(false);
     setSelectedRoom('');

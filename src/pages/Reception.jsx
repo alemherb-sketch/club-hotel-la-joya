@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import CheckInModal from '../components/CheckInModal';
 import { Filter } from 'lucide-react';
 
 export default function Reception() {
+  const { logActivity } = useAuth();
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -45,6 +47,8 @@ export default function Reception() {
   const filteredRooms = rooms.filter(r => filter === 'all' || r.status === filter);
 
   const handleUpdateRoom = async (updatedRoom) => {
+    const oldRoom = rooms.find(r => r.id === updatedRoom.id);
+    
     // Actualización optimista en la UI local
     setRooms(prev => prev.map(r => r.id === updatedRoom.id ? updatedRoom : r));
     
@@ -56,8 +60,16 @@ export default function Reception() {
       
     if (error) {
       console.error('Error actualizando la habitación:', error);
-      // Revertir en caso de error llamando de nuevo a fetchRooms
       fetchRooms();
+    } else {
+      // Registrar actividad
+      if (updatedRoom.status === 'ocupada' && oldRoom?.status !== 'ocupada') {
+        logActivity(null, null, 'check_in', `Check-in Hab. ${updatedRoom.number} — ${updatedRoom.guest}`, 'Recepción');
+      } else if (updatedRoom.status === 'limpieza' && oldRoom?.status === 'ocupada') {
+        logActivity(null, null, 'check_out', `Check-out Hab. ${updatedRoom.number} — ${oldRoom.guest}`, 'Recepción');
+      } else {
+        logActivity(null, null, 'room_status', `Hab. ${updatedRoom.number} cambió a ${updatedRoom.status}`, 'Recepción');
+      }
     }
   };
 
