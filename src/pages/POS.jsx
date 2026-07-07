@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { ShoppingBag, Search, Plus, Minus, Trash2, CreditCard, DoorClosed } from 'lucide-react';
-import { MOCK_PRODUCTS, MOCK_ROOMS } from '../mockData';
+import { useState, useMemo, useEffect } from 'react';
+import { ShoppingBag, Search, Plus, Minus, Trash2, DoorClosed } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export default function POS() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,17 +9,32 @@ export default function POS() {
   const [isChargingToRoom, setIsChargingToRoom] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState('');
 
-  const categories = ['Todas', ...new Set(MOCK_PRODUCTS.map(p => p.category))];
+  const [products, setProducts] = useState([]);
+  const [rooms, setRooms] = useState([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    const { data: prodData } = await supabase.from('products').select('*');
+    if (prodData) setProducts(prodData);
+
+    const { data: roomData } = await supabase.from('rooms').select('*').eq('status', 'ocupada');
+    if (roomData) setRooms(roomData);
+  };
+
+  const categories = ['Todas', ...new Set(products.map(p => p.category))];
 
   const filteredProducts = useMemo(() => {
-    return MOCK_PRODUCTS.filter(p => {
+    return products.filter(p => {
       const matchCat = selectedCategory === 'Todas' || p.category === selectedCategory;
       const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
       return matchCat && matchSearch;
     });
-  }, [searchTerm, selectedCategory]);
+  }, [searchTerm, selectedCategory, products]);
 
-  const occupiedRooms = MOCK_ROOMS.filter(r => r.status === 'ocupada');
+  const occupiedRooms = rooms;
 
   const addToCart = (product) => {
     setCart(prev => {

@@ -1,20 +1,64 @@
-import { useState } from 'react';
-import { MOCK_ROOMS, saveRoomsToStorage } from '../mockData';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import CheckInModal from '../components/CheckInModal';
 import { Filter } from 'lucide-react';
 
 export default function Reception() {
-  const [rooms, setRooms] = useState(MOCK_ROOMS);
+  const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [filter, setFilter] = useState('all');
 
+  useEffect(() => {
+    fetchRooms();
+
+    // Suscribirse a cambios en tiempo real
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rooms' },
+        (payload) => {
+          console.log('Cambio recibido en tiempo real:', payload);
+          if (payload.eventType === 'UPDATE') {
+            setRooms(prev => prev.map(r => r.id === payload.new.id ? payload.new : r));
+          } else if (payload.eventType === 'INSERT') {
+            setRooms(prev => [...prev, payload.new].sort((a, b) => a.id - b.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchRooms = async () => {
+    const { data, error } = await supabase.from('rooms').select('*').order('id', { ascending: true });
+    if (error) {
+      console.error('Error fetching rooms:', error);
+    } else if (data) {
+      setRooms(data);
+    }
+  };
+
   const filteredRooms = rooms.filter(r => filter === 'all' || r.status === filter);
 
-  const handleUpdateRoom = (updatedRoom) => {
-    // Actualizar globalmente para persistencia
-    const newRooms = rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r);
-    setRooms(newRooms);
-    saveRoomsToStorage(newRooms);
+  const handleUpdateRoom = async (updatedRoom) => {
+    // Actualización optimista en la UI local
+    setRooms(prev => prev.map(r => r.id === updatedRoom.id ? updatedRoom : r));
+    
+    // Guardar en la Base de Datos Real
+    const { error } = await supabase
+      .from('rooms')
+      .update({ status: updatedRoom.status, guest: updatedRoom.guest })
+      .eq('id', updatedRoom.id);
+      
+    if (error) {
+      console.error('Error actualizando la habitación:', error);
+      // Revertir en caso de error llamando de nuevo a fetchRooms
+      fetchRooms();
+    }
   };
 
   return (
