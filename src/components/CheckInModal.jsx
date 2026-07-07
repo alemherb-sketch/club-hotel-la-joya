@@ -40,30 +40,42 @@ export default function CheckInModal({ room, onClose, onUpdateRoom }) {
       return;
     }
 
-    // Múltiples APIs de respaldo — si una falla, se prueba la siguiente
-    const apiSources = currentDocType === 'DNI' ? [
-      {
-        name: 'apis.net.pe (v1)',
-        url: `https://api.apis.net.pe/v1/dni?numero=${cleanedNumber}`,
+    // Consulta vía Supabase Edge Function (proxy server-side, evita bloqueo CORS)
+    // con las APIs públicas como respaldo si la función no está disponible.
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const apiSources = [
+      ...(supabaseUrl ? [{
+        name: 'supabase edge (dni-ruc-lookup)',
+        url: `${supabaseUrl}/functions/v1/dni-ruc-lookup?tipo=${currentDocType.toLowerCase()}&numero=${cleanedNumber}`,
         headers: {},
-        extract: (data) => data.nombre || `${data.nombres || ''} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim()
-      },
-      {
-        name: 'apiperu.dev',
-        url: `https://apiperu.dev/api/dni/${cleanedNumber}`,
-        headers: { 'Content-Type': 'application/json' },
-        extract: (data) => {
-          const d = data.data || data;
-          return (d.nombre_completo || d.nombre || `${d.nombres || ''} ${d.apellido_paterno || ''} ${d.apellido_materno || ''}`).trim();
+        extract: (data) => currentDocType === 'DNI'
+          ? (data.nombre || `${data.nombres || ''} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim())
+          : (data.nombre || data.razonSocial || data.nombreOrazonSocial)
+      }] : []),
+      ...(currentDocType === 'DNI' ? [
+        {
+          name: 'apis.net.pe (v1)',
+          url: `https://api.apis.net.pe/v1/dni?numero=${cleanedNumber}`,
+          headers: {},
+          extract: (data) => data.nombre || `${data.nombres || ''} ${data.apellidoPaterno || ''} ${data.apellidoMaterno || ''}`.trim()
+        },
+        {
+          name: 'apiperu.dev',
+          url: `https://apiperu.dev/api/dni/${cleanedNumber}`,
+          headers: { 'Content-Type': 'application/json' },
+          extract: (data) => {
+            const d = data.data || data;
+            return (d.nombre_completo || d.nombre || `${d.nombres || ''} ${d.apellido_paterno || ''} ${d.apellido_materno || ''}`).trim();
+          }
         }
-      }
-    ] : [
-      {
-        name: 'apis.net.pe (v1)',
-        url: `https://api.apis.net.pe/v1/ruc?numero=${cleanedNumber}`,
-        headers: {},
-        extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
-      }
+      ] : [
+        {
+          name: 'apis.net.pe (v1)',
+          url: `https://api.apis.net.pe/v1/ruc?numero=${cleanedNumber}`,
+          headers: {},
+          extract: (data) => data.nombre || data.razonSocial || data.nombreOrazonSocial
+        }
+      ])
     ];
 
     let found = false;
