@@ -1,10 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Credenciales públicas de Supabase (la anon key es segura para exponer en el frontend)
+const supabaseUrl = 'https://wgwkeijeaxigkgohkvlk.supabase.co'
+const supabaseAnonKey = 'sb_publishable_YUruGP-enDevZ6q1Mq9q3A_2Q6qES2G'
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Faltan las credenciales de Supabase en el archivo .env');
-}
-
-export const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder')
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
